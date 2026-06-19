@@ -1,34 +1,33 @@
-# YouTube Knowledge Base Builder Agent Workflow
+# YouTube 影音知識庫建構 Agent 工作流 (YouTube Knowledge Base Builder Agent Workflow)
 
-This repository provides a step-by-step workflow and automated scripts for an AI Agent to build a clean Markdown-based knowledge base from a YouTube channel's videos.
+本倉庫提供詳細的步驟與自動化腳本，供 AI Agent 從 YouTube 頻道的影片中建構乾淨的 Markdown 格式知識庫。
 
-Other AI Agents reading this repository can follow the guidelines and execute the scripts below to construct a structured knowledge base of video transcripts (both with and without Closed Captions).
-
----
-
-## 🛠️ Prerequisites
-
-Before starting the workflow, ensure the following tools are installed and configured on the system:
-
-1. **Python 3.10+**: For running orchestration and parsing scripts.
-2. **Node.js**: YouTube signature decryption (the "n challenge") requires a JavaScript runtime. `yt-dlp` will automatically use Node.js if it is specified in the parameters.
-3. **yt-dlp**: A command-line media downloader. Place `yt-dlp.exe` (Windows) or the executable in the project root or system PATH.
-4. **FFmpeg**: Required for audio conversion and extracting media. Install via:
-   - Windows: `winget install Gyan.FFmpeg --source winget`
-   - macOS: `brew install ffmpeg`
-   - Linux: `sudo apt install ffmpeg`
-5. **Whisper (Python)**: For transcribing videos that do not have Close Captions (CC).
-   - Install via pip: `pip install openai-whisper torch`
+其他 AI Agent 讀取本倉庫後，可依照下列指引與腳本執行，自動建構出完整的影片逐字稿知識庫（同時支援**「有 CC 字幕」**與**「無 CC 字幕」**之影片）。
 
 ---
 
-## 📋 Complete Workflow
+## 🛠️ 環境需求與準備工作
 
-### Step 1: Scan and Filter Videos
-We scan the targeted YouTube channel (e.g., `@sensebar`) to list all video titles and URLs, then filter them based on interest keywords (e.g., `claude`, `codex`, `antigravity`, `opencode`, `agent`).
+在開始執行工作流之前，請確保系統已安裝並設定好以下工具：
 
-Run the following Python script to get a filtered URL list:
-- Save this as `fetch_urls.py` and run: `python fetch_urls.py`
+1. **Python 3.10+**：用於執行自動化腳本與文字解析。
+2. **Node.js**：YouTube 簽章解密挑戰（n challenge）需要 JavaScript 執行環境，`yt-dlp` 會自動在背景調用 Node.js 來完成解密。
+3. **yt-dlp**：強大的影音下載工具。請將 `yt-dlp.exe`（Windows）放置於本專案根目錄，或將其設定於系統 `PATH` 環境變數中。
+4. **FFmpeg**：用於音訊轉檔與合併。安裝指令：
+   * Windows: `winget install Gyan.FFmpeg --source winget`
+   * macOS: `brew install ffmpeg`
+   * Linux: `sudo apt install ffmpeg`
+5. **Whisper (Python 套件)**：用於對「沒有 CC 字幕」的影片進行本地語音識別（ASR）與轉錄。
+   * 安裝指令：`pip install openai-whisper torch`
+
+---
+
+## 📋 完整工作流程
+
+### 步驟 1：掃描與篩選影片
+我們會先掃描目標 YouTube 頻道（例如 `@sensebar`）的所有影片標題與網址，並根據關鍵字（如 `claude`、`codex`、`antigravity`、`opencode`、`agent`）進行篩選。
+
+請將以下程式碼儲存為 `fetch_urls.py` 並執行：`python fetch_urls.py`
 
 ```python
 import subprocess
@@ -36,9 +35,9 @@ import json
 import os
 
 url = "https://www.youtube.com/@sensebar/videos"
-yt_dlp_path = "./yt-dlp.exe"  # or "yt-dlp" if in PATH
+yt_dlp_path = "./yt-dlp.exe"  # 若已設定系統變數，可改為 "yt-dlp"
 
-# Force UTF-8 encoding for yt-dlp stdout
+# 強制將 yt-dlp 的 stdout 設為 UTF-8 編碼，防止 Windows 系統下解析亂碼
 env = os.environ.copy()
 env["PYTHONIOENCODING"] = "utf-8"
 
@@ -50,10 +49,10 @@ cmd = [
     url
 ]
 
-print("Fetching videos...")
+print("正在獲取影片清單...")
 result = subprocess.run(cmd, capture_output=True, env=env)
 if result.returncode != 0:
-    print("Error:", result.stderr.decode('utf-8', errors='replace'))
+    print("錯誤：", result.stderr.decode('utf-8', errors='replace'))
     exit(1)
 
 lines = result.stdout.decode('utf-8', errors='replace').strip().split("\n")
@@ -65,7 +64,7 @@ for line in lines:
         except:
             continue
 
-# Filter keywords (case-insensitive)
+# 篩選關鍵字 (不區分大小寫)
 keywords = ["claude", "codex", "antigravity", "opencode", "agent"]
 matched = []
 for v in videos:
@@ -73,23 +72,23 @@ for v in videos:
     if any((kw in title_lower or (kw == "opencode" and "open code" in title_lower)) for kw in keywords):
         matched.append(v)
 
-# Save URLs
+# 儲存篩選後的網址
 with open("urls_list.txt", "w", encoding="utf-8") as f:
     for mv in matched:
         f.write(f"{mv['url']}\n")
         
-print(f"Saved {len(matched)} matching URLs to urls_list.txt")
+print(f"成功將 {len(matched)} 個相符的影片網址儲存至 urls_list.txt")
 ```
 
 ---
 
-### Step 2: Fetch Transcripts (The CC and Non-CC Branch)
+### 步驟 2：獲取逐字稿（區分 CC 與 無 CC 影片）
 
-For each video URL, we must first detect if Closed Captions (CC) or auto-generated subtitles are available. 
-- If CC **exists**, we download the `.vtt` file and clean it up.
-- If CC **does not exist**, we download the high-quality audio track (M4A), convert it to MP3, and use Whisper to transcribe it.
+針對 `urls_list.txt` 中的每一個影片網址，執行分支判斷：
+- **若影片含有 CC 字幕（或自動生成字幕）**：下載 `.vtt` 字幕檔，並透過算法清理時間戳記與重複累積的滾動字幕。
+- **若影片沒有任何字幕**：下載該影片的 M4A 高音質音軌，使用 FFmpeg 轉換為 MP3，並啟動本地端的 Whisper 模型進行自動語音識別與轉錄。
 
-Here is the complete Python script `build_knowledge_base.py` that handles both branches:
+請將以下程式碼儲存為 `build_knowledge_base.py` 並執行：`python build_knowledge_base.py`
 
 ```python
 import os
@@ -99,18 +98,19 @@ import re
 import glob
 
 workspace_dir = "."
-yt_dlp_path = "./yt-dlp.exe"  # or "yt-dlp"
+yt_dlp_path = "./yt-dlp.exe"  # 或 "yt-dlp"
 urls_file = "urls_list.txt"
 
-# Ensure Whisper is imported for non-CC transcription
+# 載入 Whisper 語音識別模型 (用於無字幕影片)
 try:
     import whisper
-    whisper_model = whisper.load_model("base")  # Use 'base' or 'small' for speed/accuracy balance
+    whisper_model = whisper.load_model("base")  # 可依硬體改用 'base'、'small' 或 'medium'
 except ImportError:
-    print("Whisper is not installed. Videos without CC will be skipped. Run 'pip install openai-whisper' to enable.")
+    print("未偵測到 Whisper 套件。無 CC 字幕的影片將被跳過。請執行 'pip install openai-whisper' 安裝。")
     whisper_model = None
 
 def clean_filename(filename):
+    # 移除檔名中的不合法字元
     filename = re.sub(r'[\\/*?:"<>|]', "_", filename)
     filename = re.sub(r'_+', '_', filename)
     return filename.strip()
@@ -124,11 +124,15 @@ def parse_vtt(vtt_path):
     clean_lines = []
     for line in lines:
         line = line.strip()
+        # 跳過 VTT 標頭與時間戳記
         if not line or line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:") or "-->" in line:
             continue
+        # 移除 HTML 標籤
         line = re.sub(r'<[^>]+>', '', line).strip()
         if not line:
             continue
+        
+        # 針對 YouTube 滾動字幕的去重過濾演算法
         if not clean_lines:
             clean_lines.append(line)
         else:
@@ -141,9 +145,9 @@ def parse_vtt(vtt_path):
                 clean_lines.append(line)
     return "\n\n".join(clean_lines)
 
-# Read URLs
+# 讀取待處理網址
 if not os.path.exists(urls_file):
-    print("urls_list.txt not found. Run fetch_urls.py first.")
+    print("找不到 urls_list.txt，請先執行 fetch_urls.py。")
     exit(1)
     
 with open(urls_file, "r", encoding="utf-8") as f:
@@ -153,9 +157,9 @@ env = os.environ.copy()
 env["PYTHONIOENCODING"] = "utf-8"
 
 for idx, url in enumerate(urls, 1):
-    print(f"\n[{idx}/{len(urls)}] Processing {url}...")
+    print(f"\n[{idx}/{len(urls)}] 正在處理：{url}...")
     
-    # 1. Fetch JSON Info
+    # 1. 取得影片中繼資料
     info_cmd = [yt_dlp_path, "--skip-download", "--dump-json", url]
     res = subprocess.run(info_cmd, capture_output=True, env=env)
     if res.returncode != 0:
@@ -167,18 +171,19 @@ for idx, url in enumerate(urls, 1):
         subtitles = info_json.get("subtitles", {})
         auto_subtitles = info_json.get("automatic_captions", {})
     except Exception as e:
-        print(f"Error parsing metadata: {e}")
+        print(f"解析 JSON 失敗：{e}")
         continue
 
-    print(f"Title: {title}")
+    print(f"影片標題：{title}")
     safe_title = clean_filename(title)
     md_path = f"{safe_title}.md"
     
-    # Check if CC (Closed Caption) or Auto-subtitles are available
+    # 判斷是否有字幕軌
     has_cc = len(subtitles) > 0 or len(auto_subtitles) > 0
     
+    # ------------------ 分支 A：有 CC 字幕 ------------------
     if has_cc:
-        print("-> Found Closed Captions (CC). Downloading subtitles...")
+        print("-> 偵測到影片內建/自動生成字幕 (CC)。開始下載字幕檔...")
         temp_prefix = f"temp_sub_{video_id}"
         dl_cmd = [
             yt_dlp_path,
@@ -197,28 +202,29 @@ for idx, url in enumerate(urls, 1):
             vtt_file = sub_files[0]
             clean_text = parse_vtt(vtt_file)
             
-            # Save Transcript Markdown
+            # 寫入 Markdown 知識庫
             with open(md_path, "w", encoding="utf-8") as f:
-                f.write(f"# {title}\n\n- **YouTube Link**: {url}\n- **Source**: YouTube Closed Captions (CC)\n\n## Transcript\n\n{clean_text}\n")
-            print(f"Saved: {md_path}")
+                f.write(f"# {title}\n\n- **YouTube 影片網址**: {url}\n- **字幕來源**: YouTube 內建 CC 字幕\n\n## 影片逐字稿\n\n{clean_text}\n")
+            print(f"成功存檔：{md_path}")
             
-            # Clean temp VTT
+            # 刪除暫存的 VTT
             for sf in sub_files:
                 os.remove(sf)
         else:
-            print("Failed to download VTT subtitle file. Falling back to audio download...")
+            print("無法成功下載 VTT 字幕，將改採音訊下載與語音識別...")
             has_cc = False
             
+    # ------------------ 分支 B：無 CC 字幕 ------------------
     if not has_cc:
         if not whisper_model:
-            print("-> No CC available and Whisper is not loaded. Skipping transcription.")
+            print("-> 此影片無 CC 字幕，且本地未載入 Whisper 模型，跳過處理。")
             continue
             
-        print("-> No CC found. Downloading audio for Whisper transcription...")
+        print("-> 此影片沒有 CC 字幕。正在下載音訊檔以進行 AI 轉錄...")
         temp_audio = f"temp_audio_{video_id}.m4a"
         temp_mp3 = f"temp_audio_{video_id}.mp3"
         
-        # Download audio using Node.js to solve challenges
+        # 下載 M4A 音軌 (指定 node 破解下載限制)
         dl_cmd = [
             yt_dlp_path,
             "--js-runtimes", "node",
@@ -229,48 +235,48 @@ for idx, url in enumerate(urls, 1):
         dl_res = subprocess.run(dl_cmd, capture_output=True)
         
         if dl_res.returncode == 0 and os.path.exists(temp_audio):
-            # Convert to MP3
+            # 轉檔為 MP3 方便 Whisper 處理
             ffmpeg_cmd = ["ffmpeg", "-y", "-i", temp_audio, "-acodec", "libmp3lame", "-aq", "2", temp_mp3]
             subprocess.run(ffmpeg_cmd, capture_output=True)
             os.remove(temp_audio)
             
             if os.path.exists(temp_mp3):
-                print(f"Transcribing {temp_mp3} with Whisper...")
+                print(f"正在使用 Whisper 模型分析並語音識別 {temp_mp3}...")
                 result = whisper_model.transcribe(temp_mp3, language="zh")
                 transcribed_text = result.get("text", "")
                 
-                # Format text slightly into paragraphs
+                # 將大段文字在句號/問號/驚嘆號處自動換行，提高可讀性
                 formatted_text = "\n\n".join(re.split(r'(?<=[。！？])\s*', transcribed_text))
                 
                 with open(md_path, "w", encoding="utf-8") as f:
-                    f.write(f"# {title}\n\n- **YouTube Link**: {url}\n- **Source**: Whisper Local Transcription\n\n## Transcript\n\n{formatted_text}\n")
-                print(f"Transcribed & Saved: {md_path}")
+                    f.write(f"# {title}\n\n- **YouTube 影片網址**: {url}\n- **字幕來源**: Whisper 本地 AI 語音轉錄\n\n## 影片逐字稿\n\n{formatted_text}\n")
+                print(f"轉錄成功並已存檔：{md_path}")
                 os.remove(temp_mp3)
             else:
-                print("Failed to convert audio to MP3.")
+                print("音訊轉檔為 MP3 失敗。")
         else:
-            print("Failed to download audio.")
+            print("音軌下載失敗。")
             
-print("Workflow completed!")
+print("所有影片知識庫建構完成！")
 ```
 
 ---
 
-## 🎯 Architecture Diagram
+## 🎯 決策架構圖 (Decision Architecture Diagram)
 
-Below is the decision path of the AI Agent during the knowledge building process:
+以下是 AI Agent 在處理影片與建構知識庫時的內部決策與執行邏輯：
 
 ```mermaid
 graph TD
-    A[Start: Read URLs] --> B[Fetch Video Metadata using yt-dlp]
-    B --> C{Does Video have Subtitles/CC?}
-    C -- Yes (CC Exists) --> D[Download VTT Subtitle file]
-    D --> E[Clean timestamps & deduplicate lines]
-    E --> F[Save as Markdown File]
-    C -- No (No CC) --> G[Download Audio using Node JS runtime]
-    G --> H[Convert M4A to MP3 using FFmpeg]
-    H --> I[Transcribe Audio using Python Whisper]
-    I --> J[Format transcribed text to paragraphs]
+    A[開始: 讀取影片網址清單] --> B[使用 yt-dlp 抓取影片中繼資料]
+    B --> C{影片是否含有字幕或 CC 軌?}
+    C -- 是 (有 CC) --> D[下載 VTT 字幕檔]
+    D --> E[執行滾動字幕去重過濾演算法]
+    E --> F[儲存為乾淨的逐字稿 Markdown 檔案]
+    C -- 否 (無 CC) --> G[調用 Node.js 執行環境下載音軌 M4A]
+    G --> H[使用 FFmpeg 將 M4A 轉換為 MP3]
+    H --> I[調用 Python Whisper 進行語音識別轉錄]
+    I --> J[於標點符號處斷句，格式化為易讀段落]
     J --> F
-    F --> K[End: Knowledge Base File Generated]
+    F --> K[結束: 影音知識庫檔案生成]
 ```
