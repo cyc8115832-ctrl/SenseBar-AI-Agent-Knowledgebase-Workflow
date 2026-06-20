@@ -29,6 +29,23 @@
 
 ---
 
+## 📖 專有名詞解析 (Glossary)
+
+為了方便讀者閱讀，以下整理影片中出現的核心專有名詞與概念解析：
+
+* **IDE (Integrated Development Environment，整合開發環境)**：
+    * **解釋**：供工程師編寫、測試、除錯軟體的整合性軟體工具（例如著名的 VS Code、Cursor 或 Xcode）。傳統 IDE 主要提供代碼檔案編輯與終端機環境。
+* **CLI (Command Line Interface，命令列介面)**：
+    * **解釋**：不使用圖形視窗與滑鼠，而是純粹透過鍵入文字指令（Command）來操作系統或軟體的工具（例如 Windows 的 PowerShell 或 macOS 的 Terminal）。
+* **Agent / AI Agent (AI 代理/智能體)**：
+    * **解釋**：相較於一般的 AI 問答，Agent 具有自主的行動力。給予它一個長遠目標後，它能自主規劃步驟、讀寫檔案、執行指令、並在出錯時自我修正直至任務完成。
+* **SDK (Software Development Kit，軟體開發套件)**：
+    * **解釋**：由平台官方提供，包含函式庫、工具及說明文件，用以協助開發者在此平台上建立特定應用程式的懶人工具包。
+* **Vibe Coding (氛圍編程/感知開發)**：
+    * **解釋**：新興的 AI 開發術語。指開發者不親自動手編寫程式碼，而是充當決策與規劃的角色，給出描述（Vibe），讓 AI Agent 去做底層寫程式的苦工。
+
+---
+
 ## 🎙️ 完整逐字稿 (Transcript)
 
 哈囉，歡迎回到網均大。那今天想跟大家分享的是 Google AntiGravity 2.0 的一個更新。想要跟小夥伴們分享，這一次呢，不光是有 AntiGravity 的更新，也有就是 Gemini 3.5 Flash 這個模型的一個更新。
