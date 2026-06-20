@@ -80,3 +80,24 @@
   2. 家中電腦必須保持**開機、不休眠**狀態。
   3. 網頁端/瀏覽器上相關的帳號必須**預先登入完成**，以便 Agent 順利接管並執行網頁操作與自動化任務。
 
+### 2. LINE 與本機 AI 串接架構與作業規劃 (LINE-to-Local AI Integration)
+* **系統運作架構**：
+  * **訊息發送**：手機 LINE 用戶發送對話 ➔ LINE 伺服器接收。
+  * **網址轉發**：LINE 伺服器觸發 Webhook，將 POST 請求打往 **ngrok 公開加密臨時網址** (`https://xxxx.ngrok-free.app/callback`)。
+  * **隧道穿透**：ngrok 伺服器將請求傳遞給**使用者本機電腦**執行中的中繼 Webhook 伺服器（監聽 `localhost:5000`）。
+  * **AI 處理**：本機中繼伺服器（Python FastAPI）解析訊息，調用 **Gemini API** 處理對話。
+  * **回覆流程**：Gemini 回傳字串 ➔ 中繼伺服器調用 LINE Messaging API ➔ LINE 伺服器將答覆呈現在手機上。
+* **開發與部署四階段規劃**：
+  * **第一階段：環境準備與憑證申請**：
+    1. 註冊 LINE Developers 帳號，建立 Provider 與 Channel，取得 **Channel Secret** 及 **Channel Access Token**。
+    2. 取得 Google AI Studio 的 **Gemini API Key**。
+    3. 註冊 ngrok 免費帳號，取得 **ngrok Authtoken**。
+  * **第二階段：本機 Webhook 中繼程式開發**：
+    * 以 Python 編寫伺服器程式（依賴 `fastapi`, `uvicorn`, `line-bot-sdk`, `google-generativeai`），實作 Webhook 驗證與 Gemini API 的對接。
+  * **第三階段：網路隧道穿透測試**：
+    * 於本機終端機啟動 Python 伺服器，同時開啟 ngrok 隧道 (`ngrok http 5000`) 獲得外網專屬 URL。
+  * **第四階段：LINE 後台對接與手機驗證**：
+    * 將 ngrok HTTPS 網址設定至 LINE Developers 後台 Webhook URL，開啟並測試「Verify」連線。以手機加入 LINE 機器人實測對話。
+* **部署與限制備忘**：
+  * **限制**：免費版 ngrok 重啟後網址會變動，需手動到 LINE 後台更改，且電腦關機、中斷 ngrok 即會斷線。
+  * **長期部署解決方案**：若需 24 小時線上運作，測試成功後可將 Python 程式碼部署至免費雲端託管平台（如 Render 或 Hugging Face Spaces），擺脫本機開機與 ngrok 限制。
