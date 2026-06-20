@@ -67,7 +67,7 @@
 
 ---
 
-## 💡 核心技術與概念備忘 (Key Concepts & Reference Notes)
+## 💡 遠端遙控與LINE串接技術 (Remote Control & LINE Integration)
 
 ### 1. Claude Dispatch (遠端遙控 Agent 運作概念)
 * **核心定義**：Claude Dispatch（包含在 Cowork 模式中）是讓使用者能透過手機 App 在戶外直接遠端遙控「本機電腦端 Agent」執行自動化對話與任務的技術。
